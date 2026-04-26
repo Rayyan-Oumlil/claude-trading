@@ -44,3 +44,4 @@ jobs:
           git add journal/ memory/
           git diff --staged --quiet || git commit -m "chore: EOD snapshot $(date -u +%Y-%m-%d)"
           git push
+
