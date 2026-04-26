@@ -1,0 +1,46 @@
+name: Daily Trade Signal
+
+on:
+  schedule:
+    # 4:15 PM ET = 20:15 UTC, weekdays only
+    - cron: '15 20 * * 1-5'
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed to commit journal updates back
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run signal + place order
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: python run_signal.py
+
+      - name: Run EOD close + log journal
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: python routines_pkg/eod_close.py
+
+      - name: Commit journal + memory updates
+        run: |
+          git config user.name "claude-trading-bot"
+          git config user.email "bot@claude-trading"
+          git add journal/ memory/
+          git diff --staged --quiet || git commit -m "chore: EOD snapshot $(date -u +%Y-%m-%d)"
+          git push

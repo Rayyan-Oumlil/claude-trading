@@ -1,0 +1,41 @@
+# Secrets
+.env
+*.env.local
+*.key
+*.pem
+
+# Broker state / session caches
+paper-trading/.HALT
+paper-trading/sessions/
+live-trading/*.state
+
+# Freqtrade runtime
+ft_userdata/logs/
+ft_userdata/data/*/
+ft_userdata/backtest_results/
+ft_userdata/hyperopt_results/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Logs + temp
+*.log
+*.tmp
+tmp/

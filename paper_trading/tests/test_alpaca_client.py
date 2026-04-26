@@ -1,0 +1,107 @@
+"""Tests for the Alpaca paper client wrapper."""
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from paper_trading.alpaca_client import AlpacaClient, OrderResult
+
+
+class TestAlpacaClientInit:
+    def test_raises_if_env_vars_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("ALPACA_API_KEY", raising=False)
+        monkeypatch.delenv("ALPACA_API_SECRET", raising=False)
+        with pytest.raises(KeyError):
+            AlpacaClient()
+
+    def test_paper_mode_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "test_key")
+        monkeypatch.setenv("ALPACA_API_SECRET", "test_secret")
+        with patch("paper_trading.alpaca_client.TradingClient") as mock_tc:
+            AlpacaClient()
+            mock_tc.assert_called_once_with("test_key", "test_secret", paper=True)
+
+
+class TestGetAccount:
+    def test_returns_dict_with_expected_keys(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "k")
+        monkeypatch.setenv("ALPACA_API_SECRET", "s")
+        mock_account = MagicMock()
+        mock_account.status = "ACTIVE"
+        mock_account.buying_power = "95000.00"
+        mock_account.equity = "100000.00"
+        mock_account.cash = "50000.00"
+        with patch("paper_trading.alpaca_client.TradingClient") as mock_tc:
+            mock_tc.return_value.get_account.return_value = mock_account
+            client = AlpacaClient()
+            result = client.get_account()
+        assert result["status"] == "ACTIVE"
+        assert result["equity"] == 100000.0
+        assert result["buying_power"] == 95000.0
+        assert result["cash"] == 50000.0
+
+
+class TestPlaceMarketOrder:
+    def test_returns_order_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "k")
+        monkeypatch.setenv("ALPACA_API_SECRET", "s")
+        mock_order = MagicMock()
+        mock_order.id = "order-123"
+        mock_order.status = "accepted"
+        mock_order.filled_avg_price = "450.00"
+        with patch("paper_trading.alpaca_client.TradingClient") as mock_tc:
+            mock_tc.return_value.submit_order.return_value = mock_order
+            client = AlpacaClient()
+            result = client.place_market_order("SPY", qty=10, side="buy")
+        assert isinstance(result, OrderResult)
+        assert result.order_id == "order-123"
+        assert result.status == "accepted"
+        assert result.filled_avg_price == 450.0
+
+    def test_rejects_zero_qty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "k")
+        monkeypatch.setenv("ALPACA_API_SECRET", "s")
+        with patch("paper_trading.alpaca_client.TradingClient"):
+            client = AlpacaClient()
+            with pytest.raises(ValueError, match="qty must be > 0"):
+                client.place_market_order("SPY", qty=0, side="buy")
+
+    def test_rejects_invalid_side(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "k")
+        monkeypatch.setenv("ALPACA_API_SECRET", "s")
+        with patch("paper_trading.alpaca_client.TradingClient"):
+            client = AlpacaClient()
+            with pytest.raises(ValueError, match="side must be"):
+                client.place_market_order("SPY", qty=1, side="nonsense")
+
+
+class TestGetPositions:
+    def test_returns_empty_list_when_no_positions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "k")
+        monkeypatch.setenv("ALPACA_API_SECRET", "s")
+        with patch("paper_trading.alpaca_client.TradingClient") as mock_tc:
+            mock_tc.return_value.get_all_positions.return_value = []
+            client = AlpacaClient()
+            assert client.get_positions() == []
+
+    def test_formats_positions(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ALPACA_API_KEY", "k")
+        monkeypatch.setenv("ALPACA_API_SECRET", "s")
+        mock_pos = MagicMock()
+        mock_pos.symbol = "SPY"
+        mock_pos.qty = "10"
+        mock_pos.market_value = "4500.00"
+        mock_pos.unrealized_pl = "50.00"
+        with patch("paper_trading.alpaca_client.TradingClient") as mock_tc:
+            mock_tc.return_value.get_all_positions.return_value = [mock_pos]
+            client = AlpacaClient()
+            positions = client.get_positions()
+        assert len(positions) == 1
+        assert positions[0]["symbol"] == "SPY"
+        assert positions[0]["qty"] == 10.0
+        assert positions[0]["market_value"] == 4500.0
