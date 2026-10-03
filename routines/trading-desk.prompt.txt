@@ -1,39 +1,3 @@
-# Routine — Trading Desk (replaces daily-reflection, 2026-10-02)
-
-One Claude Code routine that runs the desk around the deterministic robot. It **never trades**. It audits, decides whether to halt, briefs Rayyan, keeps the desk's memory, and runs the research pipeline.
-
-## Why this shape
-
-| Seat | Who | Authority |
-|---|---|---|
-| Execution | `run_signal.py` on GHA (deterministic) | Places SPY orders per `strategies/ma_crossover/STRATEGY.md` |
-| Desk | this routine (Claude) | Read everything · write journal/memory/research · **write `.HALT`** on pre-written criteria · open PRs · Telegram |
-| Owner | Rayyan | Approves research, merges PRs, clears `.HALT`, acknowledges flags |
-
-The LLM gets the brake, never the gas (PRINCIPLES #6, ROADMAP "halt power" escalation). Every halt criterion is computed in Python (`routines_pkg/desk_snapshot.py`), so the agent applies rules — it doesn't invent them.
-
-## Setup (Claude Code → Routines → daily-reflection → Edit)
-
-1. **Name:** `trading-desk`.
-2. **Instructions:** open [trading-desk.prompt.txt](trading-desk.prompt.txt), Ctrl+A, Ctrl+C, paste. Paste nothing else from this doc.
-3. **Trigger:** Custom cron `55 0 * * 1-6` (UTC). = 8:55 PM EDT / 7:55 PM EST, Sunday–Friday evenings in New York.
-   The app allows one schedule per routine, so Sunday's LAB run rides the same cron; the prompt picks the mode from the New York date.
-4. **Environment** (cloud icon → add environment): name `trading-desk`, network **Trusted**, **no API credentials, no environment variables**, setup script:
-   ```
-   #!/bin/bash
-   pip install -q -r requirements.txt
-   ```
-   The routine holds **no secrets**. GitHub Actions (which has the Alpaca + Telegram secrets) builds `memory/desk-snapshot.json` after every EOD run; the routine reads it. To alert, the routine commits `memory/desk-alert.txt` and `.github/workflows/desk-notify.yml` forwards it to Telegram.
-5. **Branches:** the app only lets routines push `claude/*` branches. `.github/workflows/desk-merge.yml` auto-merges them into master when every changed path is desk output (`routines_pkg/desk_merge_guard.py`); code changes wait for review and ping Telegram. Behavior → Auto-fix PRs: off.
-6. **Notifications:** on.
-7. **Model:** Opus 5.5.
-8. Save → **Run now** → expect: a `desk:` commit on master, a Desk Brief in today's journal, a Telegram heartbeat.
-
-**Why no secrets:** Alpaca has no read-only keys — any key that can read can trade. Keeping keys out of the routine makes "the desk never trades" a fact, not a promise.
-
-## Routine prompt
-
-```
 You are the TRADING DESK for Rayyan's paper-trading system (repo: claude-trading).
 A deterministic robot (run_signal.py on GitHub Actions) trades SPY. You do NOT
 trade. You audit, decide whether to halt, brief Rayyan, keep the desk's memory,
@@ -148,4 +112,3 @@ STEP 10 — COMMIT
   git add journal memory research backtests
   git commit -m "desk: <mode> <session>" && git push
   If the heartbeat cannot reach Telegram, that silence is the signal.
-```
